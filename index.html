@@ -306,6 +306,20 @@
   }
   .provento-row:last-child{border-bottom:none;}
   .provento-row .valor-provento{color:var(--green-deep);font-weight:600;}
+  .venda-row{
+    display:grid;
+    grid-template-columns:1fr auto auto auto;
+    gap:10px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    padding:8px 0;
+    border-bottom:1px dashed var(--paper-line);
+    align-items:center;
+  }
+  .venda-row:last-child{border-bottom:none;}
+  .venda-row .lucro-pos{color:var(--green-deep);font-weight:600;}
+  .venda-row .lucro-neg{color:var(--rust);font-weight:600;}
+  .mini-form.venda-form{background:var(--paper-dim);}
   .badge-periodo{
     display:inline-block;
     font-size:9.5px;
@@ -584,12 +598,20 @@ async function loadAtivos() {
 
   const { data: compras } = await supabase.from('compras').select('*').order('data_compra', { ascending:false });
   const { data: proventos } = await supabase.from('proventos').select('*').order('data_pagamento', { ascending:false });
+  const { data: vendas } = await supabase.from('vendas').select('*').order('data_venda', { ascending:false });
 
   box.innerHTML = ativos.map(at => {
     const comprasDoAtivo = (compras || []).filter(c => c.ativo_id === at.id);
-    const qtdTotal = comprasDoAtivo.reduce((s,c) => s + Number(c.quantidade), 0);
-    const valorTotal = comprasDoAtivo.reduce((s,c) => s + Number(c.quantidade) * Number(c.valor_unitario), 0);
-    const precoMedio = qtdTotal > 0 ? valorTotal / qtdTotal : 0;
+    const qtdComprada = comprasDoAtivo.reduce((s,c) => s + Number(c.quantidade), 0);
+    const valorComprado = comprasDoAtivo.reduce((s,c) => s + Number(c.quantidade) * Number(c.valor_unitario), 0);
+    const precoMedio = qtdComprada > 0 ? valorComprado / qtdComprada : 0;
+
+    const vendasDoAtivo = (vendas || []).filter(v => v.ativo_id === at.id);
+    const qtdVendida = vendasDoAtivo.reduce((s,v) => s + Number(v.quantidade), 0);
+    const lucroRealizado = vendasDoAtivo.reduce((s,v) => s + (Number(v.valor_unitario) - precoMedio) * Number(v.quantidade), 0);
+
+    const qtdAtual = qtdComprada - qtdVendida;
+    const valorPosicaoAtual = precoMedio * qtdAtual;
 
     const proventosDoAtivo = (proventos || []).filter(p => p.ativo_id === at.id);
     const totalProventos = proventosDoAtivo.reduce((s,p) => s + Number(p.valor), 0);
@@ -602,10 +624,11 @@ async function loadAtivos() {
           <span class="badge-tipo">${at.tipo === 'fii' ? 'FII' : 'Ação'}</span>
         </div>
         <div class="ativo-stats">
-          <span>Cotas: <b>${fmtNum(qtdTotal, 4).replace(/\.?0+$/,'')}</b></span>
+          <span>Cotas atuais: <b>${fmtNum(qtdAtual, 4).replace(/\.?0+$/,'')}</b></span>
           <span>Preço médio: <b>${fmtBRL(precoMedio)}</b></span>
-          <span>Investido: <b>${fmtBRL(valorTotal)}</b></span>
+          <span>Investido (posição): <b>${fmtBRL(valorPosicaoAtual)}</b></span>
           <span>Proventos recebidos: <b style="color:var(--green-deep);">${fmtBRL(totalProventos)}</b></span>
+          ${vendasDoAtivo.length ? `<span>Lucro em vendas: <b class="${lucroRealizado >= 0 ? '' : ''}" style="color:${lucroRealizado >= 0 ? 'var(--green-deep)' : 'var(--rust)'};">${fmtBRL(lucroRealizado)}</b></span>` : ''}
         </div>
         <button class="del-btn" data-del-ativo="${at.id}">remover ativo</button>
       </div>
@@ -623,6 +646,27 @@ async function loadAtivos() {
         <input type="number" step="0.0001" min="0" placeholder="Quantidade" required data-f="qtd" />
         <input type="number" step="0.0001" min="0" placeholder="Valor pago/cota" required data-f="valor" />
         <button type="submit">+ Compra</button>
+      </form>
+
+      <div class="subsecao-label">Vendas</div>
+      <div class="compras-list">
+        ${vendasDoAtivo.length ? vendasDoAtivo.map(v => {
+          const lucroVenda = (Number(v.valor_unitario) - precoMedio) * Number(v.quantidade);
+          return `
+          <div class="venda-row">
+            <span>${fmtData(v.data_venda)}</span>
+            <span>${fmtNum(v.quantidade,4).replace(/\.?0+$/,'')} cotas</span>
+            <span>${fmtBRL(v.valor_unitario)}/cota</span>
+            <span class="${lucroVenda >= 0 ? 'lucro-pos' : 'lucro-neg'}">${lucroVenda >= 0 ? '+' : ''}${fmtBRL(lucroVenda)}</span>
+            <button class="del-btn" data-del-venda="${v.id}" style="margin:0;">remover</button>
+          </div>`;
+        }).join('') : '<div class="empty-state" style="padding:10px 0;">Nenhuma venda lançada ainda.</div>'}
+      </div>
+      <form class="mini-form venda-form" data-form-venda="${at.id}">
+        <input type="date" placeholder="Data da venda" required data-f="data" />
+        <input type="number" step="0.0001" min="0" placeholder="Quantidade vendida" required data-f="qtd" />
+        <input type="number" step="0.0001" min="0" placeholder="Valor vendido/cota" required data-f="valor" />
+        <button type="submit">+ Venda</button>
       </form>
 
       <div class="subsecao-label">Proventos recebidos</div>
@@ -657,6 +701,10 @@ async function loadAtivos() {
     await supabase.from('compras').delete().eq('id', b.dataset.delCompra);
     loadAtivos();
   }));
+  box.querySelectorAll('[data-del-venda]').forEach(b => b.addEventListener('click', async () => {
+    await supabase.from('vendas').delete().eq('id', b.dataset.delVenda);
+    loadAtivos();
+  }));
   box.querySelectorAll('[data-del-provento]').forEach(b => b.addEventListener('click', async () => {
     await supabase.from('proventos').delete().eq('id', b.dataset.delProvento);
     loadAtivos();
@@ -670,6 +718,17 @@ async function loadAtivos() {
     const { error } = await supabase.from('compras').insert({ ativo_id: ativoId, data_compra: data, quantidade: qtd, valor_unitario: valor });
     if (error) { showMsg('msg-variavel', 'Erro: ' + error.message, true); return; }
     showMsg('msg-variavel', 'Compra lançada, preço médio atualizado.');
+    loadAtivos();
+  }));
+  box.querySelectorAll('[data-form-venda]').forEach(f => f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const ativoId = f.dataset.formVenda;
+    const data = f.querySelector('[data-f="data"]').value;
+    const qtd = parseFloat(f.querySelector('[data-f="qtd"]').value);
+    const valor = parseFloat(f.querySelector('[data-f="valor"]').value);
+    const { error } = await supabase.from('vendas').insert({ ativo_id: ativoId, data_venda: data, quantidade: qtd, valor_unitario: valor });
+    if (error) { showMsg('msg-variavel', 'Erro: ' + error.message, true); return; }
+    showMsg('msg-variavel', 'Venda lançada, posição atualizada.');
     loadAtivos();
   }));
   box.querySelectorAll('[data-form-provento]').forEach(f => f.addEventListener('submit', async (e) => {
@@ -705,6 +764,7 @@ async function renderResumo() {
   const { data: ativos } = await supabase.from('ativos').select('*');
   const { data: compras } = await supabase.from('compras').select('*');
   const { data: proventos } = await supabase.from('proventos').select('*');
+  const { data: vendas } = await supabase.from('vendas').select('*');
 
   const totalFixaInvestido = (rendaFixa || []).reduce((s,r) => s + Number(r.valor_investido), 0);
   const totalFixaAtual = (rendaFixa || []).reduce((s,r) => s + calcRendaFixa(r).valorAtual, 0);
@@ -713,12 +773,24 @@ async function renderResumo() {
   const tickersPorTipo = { acao: new Set(), fii: new Set() };
   (ativos || []).forEach(a => tickersPorTipo[a.tipo]?.add(a.id));
 
-  let totalAcoes = 0, totalFiis = 0;
-  (compras || []).forEach(c => {
-    const valor = Number(c.quantidade) * Number(c.valor_unitario);
-    if (tickersPorTipo.acao.has(c.ativo_id)) totalAcoes += valor;
-    if (tickersPorTipo.fii.has(c.ativo_id)) totalFiis += valor;
+  // posição atual (após vendas) e lucro realizado, calculados por ativo
+  let totalAcoes = 0, totalFiis = 0, lucroRealizadoAcoes = 0, lucroRealizadoFiis = 0;
+  (ativos || []).forEach(at => {
+    const comprasDoAtivo = (compras || []).filter(c => c.ativo_id === at.id);
+    const qtdComprada = comprasDoAtivo.reduce((s,c) => s + Number(c.quantidade), 0);
+    const valorComprado = comprasDoAtivo.reduce((s,c) => s + Number(c.quantidade) * Number(c.valor_unitario), 0);
+    const precoMedio = qtdComprada > 0 ? valorComprado / qtdComprada : 0;
+
+    const vendasDoAtivo = (vendas || []).filter(v => v.ativo_id === at.id);
+    const qtdVendida = vendasDoAtivo.reduce((s,v) => s + Number(v.quantidade), 0);
+    const lucroRealizado = vendasDoAtivo.reduce((s,v) => s + (Number(v.valor_unitario) - precoMedio) * Number(v.quantidade), 0);
+
+    const valorPosicaoAtual = precoMedio * (qtdComprada - qtdVendida);
+
+    if (at.tipo === 'acao') { totalAcoes += valorPosicaoAtual; lucroRealizadoAcoes += lucroRealizado; }
+    if (at.tipo === 'fii') { totalFiis += valorPosicaoAtual; lucroRealizadoFiis += lucroRealizado; }
   });
+  const lucroRealizadoTotal = lucroRealizadoAcoes + lucroRealizadoFiis;
 
   let proventosAcoes = 0, proventosFiis = 0;
   (proventos || []).forEach(p => {
@@ -749,19 +821,24 @@ async function renderResumo() {
       <div class="resumo-card">
         <div class="rc-label">Ações</div>
         <div class="rc-valor">${fmtBRL(totalAcoes)}</div>
-        <div style="font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--ink-soft);margin-top:4px;">valor investido (custo)</div>
+        <div style="font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--ink-soft);margin-top:4px;">posição atual (custo)</div>
         <div style="font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--green-deep);margin-top:2px;">+ ${fmtBRL(proventosAcoes)} em proventos</div>
       </div>
       <div class="resumo-card">
         <div class="rc-label">Fundos Imobiliários</div>
         <div class="rc-valor">${fmtBRL(totalFiis)}</div>
-        <div style="font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--ink-soft);margin-top:4px;">valor investido (custo)</div>
+        <div style="font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--ink-soft);margin-top:4px;">posição atual (custo)</div>
         <div style="font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--green-deep);margin-top:2px;">+ ${fmtBRL(proventosFiis)} em proventos</div>
       </div>
       <div class="resumo-card">
         <div class="rc-label">Proventos recebidos (total)</div>
         <div class="rc-valor">${fmtBRL(totalProventos)}</div>
         <div style="font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--ink-soft);margin-top:4px;">dividendos + JCP acumulados</div>
+      </div>
+      <div class="resumo-card">
+        <div class="rc-label">Lucro realizado em vendas</div>
+        <div class="rc-valor" style="color:${lucroRealizadoTotal >= 0 ? 'var(--green-deep)' : 'var(--rust)'};">${fmtBRL(lucroRealizadoTotal)}</div>
+        <div style="font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--ink-soft);margin-top:4px;">venda menos preço médio</div>
       </div>
     </div>
   `;
