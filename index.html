@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Livro-Caixa · Meus Investimentos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#16241F;
+    --ink-soft:#44564D;
+    --paper:#F2ECDC;
+    --paper-dim:#E7DFC7;
+    --paper-line:#CBBF9F;
+    --green:#2F6B4F;
+    --green-deep:#1F4A37;
+    --gold:#B0812B;
+    --rust:#A6432C;
+    --shadow: 0 1px 0 rgba(22,36,31,0.06);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--ink);
+    background-image:
+      radial-gradient(circle at 15% 0%, #1c332a 0%, var(--ink) 55%);
+    color:var(--ink);
+    font-family:'Inter', sans-serif;
+    min-height:100vh;
+  }
+  .wrap{max-width:920px;margin:0 auto;padding:28px 20px 80px;}
+
+  /* Header — capa do livro-caixa */
+  header{
+    padding:34px 8px 26px;
+    color:var(--paper);
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    flex-wrap:wrap;
+    gap:14px;
+    border-bottom:1px solid rgba(242,236,220,0.18);
+    margin-bottom:26px;
+  }
+  header .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--gold);
+    margin-bottom:6px;
+  }
+  header h1{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:36px;
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  header .data-hoje{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    color:#AEC2B7;
+    text-align:right;
+  }
+
+  /* Tabs estilo separadores de livro */
+  nav.tabs{
+    display:flex;
+    gap:6px;
+    margin-bottom:22px;
+  }
+  nav.tabs button{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    letter-spacing:.04em;
+    background:transparent;
+    border:1px solid rgba(242,236,220,0.28);
+    color:#CBD9D0;
+    padding:10px 16px;
+    cursor:pointer;
+    border-radius:3px 3px 0 0;
+    transition:all .15s ease;
+  }
+  nav.tabs button.active{
+    background:var(--paper);
+    color:var(--ink);
+    border-color:var(--paper);
+    font-weight:600;
+  }
+  nav.tabs button:not(.active):hover{
+    border-color:var(--gold);
+    color:var(--paper);
+  }
+
+  .page{
+    background:var(--paper);
+    border-radius:2px;
+    box-shadow:0 18px 40px rgba(0,0,0,0.35);
+    padding:30px 28px 34px;
+    display:none;
+  }
+  .page.active{display:block;}
+
+  h2.section-title{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:22px;
+    margin:0 0 4px;
+    color:var(--ink);
+  }
+  p.section-sub{
+    margin:0 0 22px;
+    color:var(--ink-soft);
+    font-size:13.5px;
+  }
+
+  /* Selo / carimbo — elemento de assinatura */
+  .selo{
+    display:inline-flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    width:118px;
+    height:118px;
+    border:2.5px dashed var(--green);
+    border-radius:50%;
+    transform:rotate(-7deg);
+    color:var(--green-deep);
+    font-family:'IBM Plex Mono', monospace;
+    text-align:center;
+    flex-shrink:0;
+  }
+  .selo.negativo{border-color:var(--rust);color:var(--rust);}
+  .selo .selo-label{font-size:9px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:3px;}
+  .selo .selo-valor{font-size:15px;font-weight:600;line-height:1.15;padding:0 8px;}
+
+  /* Formulário */
+  form.entry-form{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:12px;
+    padding:18px;
+    background:var(--paper-dim);
+    border:1px solid var(--paper-line);
+    border-radius:3px;
+    margin-bottom:26px;
+  }
+  form.entry-form .field{display:flex;flex-direction:column;gap:5px;}
+  form.entry-form label{
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--ink-soft);
+    font-weight:600;
+  }
+  form.entry-form input, form.entry-form select{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13.5px;
+    padding:9px 10px;
+    border:1px solid var(--paper-line);
+    border-radius:2px;
+    background:var(--paper);
+    color:var(--ink);
+  }
+  form.entry-form input:focus, form.entry-form select:focus{
+    outline:2px solid var(--green);
+    outline-offset:1px;
+  }
+  form.entry-form .field.full{grid-column:1/-1;}
+  form.entry-form button{
+    grid-column:1/-1;
+    justify-self:start;
+    font-family:'Inter',sans-serif;
+    font-weight:600;
+    font-size:13.5px;
+    background:var(--green);
+    color:var(--paper);
+    border:none;
+    padding:10px 20px;
+    border-radius:2px;
+    cursor:pointer;
+    transition:background .15s ease;
+  }
+  form.entry-form button:hover{background:var(--green-deep);}
+
+  /* Linhas estilo ledger */
+  .ledger{border-top:1px solid var(--ink);}
+  .ledger-row{
+    display:grid;
+    grid-template-columns:1fr auto;
+    align-items:start;
+    gap:6px 16px;
+    padding:16px 2px;
+    border-bottom:1px dashed var(--paper-line);
+  }
+  .ledger-row:last-child{border-bottom:1px solid var(--ink);}
+  .lr-main{min-width:0;}
+  .lr-title{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:16.5px;
+    color:var(--ink);
+    margin-bottom:2px;
+  }
+  .lr-meta{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    color:var(--ink-soft);
+    display:flex;
+    flex-wrap:wrap;
+    gap:2px 12px;
+  }
+  .lr-values{text-align:right;font-family:'IBM Plex Mono', monospace;}
+  .lr-values .big{font-size:16px;font-weight:600;color:var(--ink);}
+  .lr-values .tag{
+    font-size:10px;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    margin-top:2px;
+  }
+  .tag.pos{color:var(--green-deep);}
+  .tag.neg{color:var(--rust);}
+  .badge-tipo{
+    display:inline-block;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    padding:2px 7px;
+    border-radius:2px;
+    border:1px solid var(--ink-soft);
+    color:var(--ink-soft);
+    margin-left:8px;
+  }
+  .del-btn{
+    background:none;border:none;cursor:pointer;
+    color:var(--rust);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    text-decoration:underline;
+    padding:0;margin-top:8px;
+  }
+
+  .ativo-block{
+    border:1px solid var(--paper-line);
+    border-radius:3px;
+    margin-bottom:18px;
+    overflow:hidden;
+  }
+  .ativo-head{
+    background:var(--paper-dim);
+    padding:14px 16px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .ativo-head .ticker{
+    font-family:'Fraunces', serif;
+    font-weight:700;
+    font-size:19px;
+  }
+  .ativo-stats{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--ink-soft);
+    display:flex;
+    gap:16px;
+    flex-wrap:wrap;
+  }
+  .ativo-stats b{color:var(--ink);}
+  .compras-list{padding:6px 16px 14px;}
+  .compra-row{
+    display:grid;
+    grid-template-columns:1fr auto auto auto;
+    gap:10px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    padding:8px 0;
+    border-bottom:1px dashed var(--paper-line);
+    align-items:center;
+  }
+  .compra-row:last-child{border-bottom:none;}
+  .mini-form{
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr auto;
+    gap:8px;
+    padding:12px 16px 16px;
+    background:var(--paper);
+  }
+  .mini-form input{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    padding:7px 8px;
+    border:1px solid var(--paper-line);
+    border-radius:2px;
+  }
+  .mini-form button{
+    font-family:'Inter',sans-serif;
+    font-weight:600;
+    font-size:12px;
+    background:var(--ink);
+    color:var(--paper);
+    border:none;
+    border-radius:2px;
+    padding:7px 12px;
+    cursor:pointer;
+  }
+
+  .resumo-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    gap:16px;
+    margin-bottom:28px;
+  }
+  .resumo-card{
+    border:1px solid var(--paper-line);
+    padding:18px;
+    border-radius:3px;
+    background:var(--paper-dim);
+  }
+  .resumo-card .rc-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--ink-soft);
+    margin-bottom:6px;
+  }
+  .resumo-card .rc-valor{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:26px;
+    color:var(--ink);
+  }
+
+  .empty-state{
+    padding:26px 4px;
+    text-align:center;
+    color:var(--ink-soft);
+    font-size:13px;
+    font-style:italic;
+  }
+  .status-msg{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--gold);
+    margin-bottom:14px;
+    min-height:16px;
+  }
+  @media (max-width:640px){
+    header h1{font-size:27px;}
+    .mini-form{grid-template-columns:1fr 1fr;}
+    .ledger-row{grid-template-columns:1fr;}
+    .lr-values{text-align:left;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow">Livro-caixa pessoal</div>
+      <h1>Meus Investimentos</h1>
+    </div>
+    <div class="data-hoje" id="dataHoje"></div>
+  </header>
+
+  <nav class="tabs">
+    <button data-tab="fixa" class="active">Renda Fixa</button>
+    <button data-tab="variavel">Ações &amp; FIIs</button>
+    <button data-tab="resumo">Resumo</button>
+  </nav>
+
+  <!-- RENDA FIXA -->
+  <section class="page active" id="page-fixa">
+    <h2 class="section-title">Renda Fixa</h2>
+    <p class="section-sub">CDBs, Tesouro Direto, LCI/LCA e afins. Informe a taxa ao ano — o rendimento acumulado é calculado sozinho.</p>
+    <div class="status-msg" id="msg-fixa"></div>
+
+    <form class="entry-form" id="form-fixa">
+      <div class="field full">
+        <label>Nome do investimento</label>
+        <input type="text" id="rf-nome" placeholder="Ex: CDB Banco Inter 2027" required />
+      </div>
+      <div class="field">
+        <label>Valor investido (R$)</label>
+        <input type="number" id="rf-valor" step="0.01" min="0" required />
+      </div>
+      <div class="field">
+        <label>Taxa ao ano (%)</label>
+        <input type="number" id="rf-taxa" step="0.01" min="0" required />
+      </div>
+      <div class="field">
+        <label>Data da aplicação</label>
+        <input type="date" id="rf-data" required />
+      </div>
+      <div class="field">
+        <label>Vencimento (opcional)</label>
+        <input type="date" id="rf-venc" />
+      </div>
+      <button type="submit">+ Lançar investimento</button>
+    </form>
+
+    <div id="lista-fixa" class="ledger"></div>
+  </section>
+
+  <!-- RENDA VARIAVEL -->
+  <section class="page" id="page-variavel">
+    <h2 class="section-title">Ações &amp; Fundos Imobiliários</h2>
+    <p class="section-sub">Cadastre o ativo uma vez. A cada mês que comprar mais, lance a compra — o preço médio é recalculado automaticamente.</p>
+    <div class="status-msg" id="msg-variavel"></div>
+
+    <form class="entry-form" id="form-ativo">
+      <div class="field">
+        <label>Ticker</label>
+        <input type="text" id="at-ticker" placeholder="Ex: MXRF11" required style="text-transform:uppercase" />
+      </div>
+      <div class="field">
+        <label>Tipo</label>
+        <select id="at-tipo" required>
+          <option value="fii">Fundo Imobiliário</option>
+          <option value="acao">Ação</option>
+        </select>
+      </div>
+      <button type="submit">+ Cadastrar ativo</button>
+    </form>
+
+    <div id="lista-ativos"></div>
+  </section>
+
+  <!-- RESUMO -->
+  <section class="page" id="page-resumo">
+    <h2 class="section-title">Resumo Geral</h2>
+    <p class="section-sub">Panorama do que está investido em cada categoria.</p>
+    <div id="resumo-conteudo"></div>
+  </section>
+</div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+const SUPABASE_URL = 'https://jscmqbelbjpkhfridayn.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_r1WSNkLB4Aq-Pms75OSDXg_exh3R2a5';
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const fmtBRL = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const fmtNum = (v, casas = 2) => (v ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
+const fmtData = (d) => new Date(d + 'T00:00:00').toLocaleDateString('pt-BR');
+
+document.getElementById('dataHoje').textContent = 'Hoje · ' + new Date().toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
+
+// ---------- TABS ----------
+document.querySelectorAll('nav.tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('nav.tabs button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('page-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'resumo') renderResumo();
+  });
+});
+
+function showMsg(id, texto, isErro = false) {
+  const el = document.getElementById(id);
+  el.textContent = texto;
+  el.style.color = isErro ? '#A6432C' : '#B0812B';
+  if (texto) setTimeout(() => { if (el.textContent === texto) el.textContent=''; }, 4000);
+}
+
+// ---------- RENDA FIXA ----------
+function calcRendaFixa(rf) {
+  const hoje = new Date();
+  const dataAplicacao = new Date(rf.data_aplicacao + 'T00:00:00');
+  const anosDecorridos = Math.max(0, (hoje - dataAplicacao) / (1000*60*60*24*365.25));
+  const taxaDecimal = rf.taxa_aa / 100;
+  const valorAtual = rf.valor_investido * Math.pow(1 + taxaDecimal, anosDecorridos);
+  const rendimentoAtual = valorAtual - rf.valor_investido;
+
+  let projecaoVencimento = null;
+  if (rf.data_vencimento) {
+    const dataVenc = new Date(rf.data_vencimento + 'T00:00:00');
+    const anosAteVenc = Math.max(0, (dataVenc - dataAplicacao) / (1000*60*60*24*365.25));
+    const valorFinal = rf.valor_investido * Math.pow(1 + taxaDecimal, anosAteVenc);
+    projecaoVencimento = { valorFinal, lucroFinal: valorFinal - rf.valor_investido };
+  }
+  return { valorAtual, rendimentoAtual, projecaoVencimento };
+}
+
+async function loadRendaFixa() {
+  const { data, error } = await supabase.from('renda_fixa').select('*').order('data_aplicacao', { ascending:false });
+  const box = document.getElementById('lista-fixa');
+  if (error) { box.innerHTML = `<div class="empty-state">Erro ao carregar: ${error.message}</div>`; return; }
+  if (!data.length) { box.innerHTML = `<div class="empty-state">Nenhum investimento lançado ainda.</div>`; return; }
+
+  box.innerHTML = data.map(rf => {
+    const c = calcRendaFixa(rf);
+    return `
+    <div class="ledger-row">
+      <div class="lr-main">
+        <div class="lr-title">${rf.nome}</div>
+        <div class="lr-meta">
+          <span>Aplicado em ${fmtData(rf.data_aplicacao)}</span>
+          <span>· Taxa ${fmtNum(rf.taxa_aa)}% a.a.</span>
+          ${rf.data_vencimento ? `<span>· Vence em ${fmtData(rf.data_vencimento)}</span>` : ''}
+        </div>
+        <button class="del-btn" data-del-fixa="${rf.id}">remover lançamento</button>
+      </div>
+      <div class="lr-values">
+        <div class="big">${fmtBRL(c.valorAtual)}</div>
+        <div class="tag pos">+ ${fmtBRL(c.rendimentoAtual)} até hoje</div>
+        <div style="font-size:11px;color:var(--ink-soft);margin-top:2px;">investido: ${fmtBRL(rf.valor_investido)}</div>
+        ${c.projecaoVencimento ? `<div style="font-size:11px;color:var(--ink-soft);margin-top:4px;">no vencimento: <b>${fmtBRL(c.projecaoVencimento.valorFinal)}</b></div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  box.querySelectorAll('[data-del-fixa]').forEach(b => b.addEventListener('click', async () => {
+    await supabase.from('renda_fixa').delete().eq('id', b.dataset.delFixa);
+    loadRendaFixa();
+  }));
+}
+
+document.getElementById('form-fixa').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const payload = {
+    nome: document.getElementById('rf-nome').value.trim(),
+    valor_investido: parseFloat(document.getElementById('rf-valor').value),
+    taxa_aa: parseFloat(document.getElementById('rf-taxa').value),
+    data_aplicacao: document.getElementById('rf-data').value,
+    data_vencimento: document.getElementById('rf-venc').value || null
+  };
+  const { error } = await supabase.from('renda_fixa').insert(payload);
+  if (error) { showMsg('msg-fixa', 'Erro: ' + error.message, true); return; }
+  e.target.reset();
+  showMsg('msg-fixa', 'Investimento lançado.');
+  loadRendaFixa();
+});
+
+// ---------- RENDA VARIAVEL ----------
+async function loadAtivos() {
+  const box = document.getElementById('lista-ativos');
+  const { data: ativos, error } = await supabase.from('ativos').select('*').order('ticker');
+  if (error) { box.innerHTML = `<div class="empty-state">Erro ao carregar: ${error.message}</div>`; return; }
+  if (!ativos.length) { box.innerHTML = `<div class="empty-state">Nenhum ativo cadastrado ainda.</div>`; return; }
+
+  const { data: compras } = await supabase.from('compras').select('*').order('data_compra', { ascending:false });
+
+  box.innerHTML = ativos.map(at => {
+    const comprasDoAtivo = (compras || []).filter(c => c.ativo_id === at.id);
+    const qtdTotal = comprasDoAtivo.reduce((s,c) => s + Number(c.quantidade), 0);
+    const valorTotal = comprasDoAtivo.reduce((s,c) => s + Number(c.quantidade) * Number(c.valor_unitario), 0);
+    const precoMedio = qtdTotal > 0 ? valorTotal / qtdTotal : 0;
+
+    return `
+    <div class="ativo-block" data-ativo="${at.id}">
+      <div class="ativo-head">
+        <div>
+          <span class="ticker">${at.ticker}</span>
+          <span class="badge-tipo">${at.tipo === 'fii' ? 'FII' : 'Ação'}</span>
+        </div>
+        <div class="ativo-stats">
+          <span>Cotas: <b>${fmtNum(qtdTotal, 4).replace(/\.?0+$/,'')}</b></span>
+          <span>Preço médio: <b>${fmtBRL(precoMedio)}</b></span>
+          <span>Investido: <b>${fmtBRL(valorTotal)}</b></span>
+        </div>
+        <button class="del-btn" data-del-ativo="${at.id}">remover ativo</button>
+      </div>
+      <div class="compras-list">
+        ${comprasDoAtivo.length ? comprasDoAtivo.map(c => `
+          <div class="compra-row">
+            <span>${fmtData(c.data_compra)}</span>
+            <span>${fmtNum(c.quantidade,4).replace(/\.?0+$/,'')} cotas</span>
+            <span>${fmtBRL(c.valor_unitario)}/cota</span>
+            <button class="del-btn" data-del-compra="${c.id}" style="margin:0;">remover</button>
+          </div>`).join('') : '<div class="empty-state" style="padding:10px 0;">Nenhuma compra lançada para este ativo.</div>'}
+      </div>
+      <form class="mini-form" data-form-compra="${at.id}">
+        <input type="date" placeholder="Data" required data-f="data" />
+        <input type="number" step="0.0001" min="0" placeholder="Quantidade" required data-f="qtd" />
+        <input type="number" step="0.0001" min="0" placeholder="Valor pago/cota" required data-f="valor" />
+        <button type="submit">+ Compra</button>
+      </form>
+    </div>`;
+  }).join('');
+
+  box.querySelectorAll('[data-del-ativo]').forEach(b => b.addEventListener('click', async () => {
+    await supabase.from('ativos').delete().eq('id', b.dataset.delAtivo);
+    loadAtivos();
+  }));
+  box.querySelectorAll('[data-del-compra]').forEach(b => b.addEventListener('click', async () => {
+    await supabase.from('compras').delete().eq('id', b.dataset.delCompra);
+    loadAtivos();
+  }));
+  box.querySelectorAll('[data-form-compra]').forEach(f => f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const ativoId = f.dataset.formCompra;
+    const data = f.querySelector('[data-f="data"]').value;
+    const qtd = parseFloat(f.querySelector('[data-f="qtd"]').value);
+    const valor = parseFloat(f.querySelector('[data-f="valor"]').value);
+    const { error } = await supabase.from('compras').insert({ ativo_id: ativoId, data_compra: data, quantidade: qtd, valor_unitario: valor });
+    if (error) { showMsg('msg-variavel', 'Erro: ' + error.message, true); return; }
+    showMsg('msg-variavel', 'Compra lançada, preço médio atualizado.');
+    loadAtivos();
+  }));
+}
+
+document.getElementById('form-ativo').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const ticker = document.getElementById('at-ticker').value.trim().toUpperCase();
+  const tipo = document.getElementById('at-tipo').value;
+  const { error } = await supabase.from('ativos').insert({ ticker, tipo });
+  if (error) { showMsg('msg-variavel', 'Erro: ' + error.message, true); return; }
+  e.target.reset();
+  showMsg('msg-variavel', 'Ativo cadastrado.');
+  loadAtivos();
+});
+
+// ---------- RESUMO ----------
+async function renderResumo() {
+  const box = document.getElementById('resumo-conteudo');
+  box.innerHTML = '<div class="empty-state">Calculando…</div>';
+
+  const { data: rendaFixa } = await supabase.from('renda_fixa').select('*');
+  const { data: ativos } = await supabase.from('ativos').select('*');
+  const { data: compras } = await supabase.from('compras').select('*');
+
+  const totalFixaInvestido = (rendaFixa || []).reduce((s,r) => s + Number(r.valor_investido), 0);
+  const totalFixaAtual = (rendaFixa || []).reduce((s,r) => s + calcRendaFixa(r).valorAtual, 0);
+  const rendimentoFixa = totalFixaAtual - totalFixaInvestido;
+
+  const tickersPorTipo = { acao: new Set(), fii: new Set() };
+  (ativos || []).forEach(a => tickersPorTipo[a.tipo]?.add(a.id));
+
+  let totalAcoes = 0, totalFiis = 0;
+  (compras || []).forEach(c => {
+    const valor = Number(c.quantidade) * Number(c.valor_unitario);
+    if (tickersPorTipo.acao.has(c.ativo_id)) totalAcoes += valor;
+    if (tickersPorTipo.fii.has(c.ativo_id)) totalFiis += valor;
+  });
+
+  const totalGeral = totalFixaAtual + totalAcoes + totalFiis;
+
+  box.innerHTML = `
+    <div style="display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin-bottom:26px;">
+      <div class="selo ${rendimentoFixa < 0 ? 'negativo' : ''}">
+        <div class="selo-label">Rendendo</div>
+        <div class="selo-valor">${fmtBRL(rendimentoFixa)}</div>
+      </div>
+      <div>
+        <div style="font-family:'IBM Plex Mono', monospace;font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;">Patrimônio total estimado</div>
+        <div style="font-family:'Fraunces', serif;font-weight:700;font-size:34px;color:var(--ink);">${fmtBRL(totalGeral)}</div>
+      </div>
+    </div>
+    <div class="resumo-grid">
+      <div class="resumo-card">
+        <div class="rc-label">Renda Fixa</div>
+        <div class="rc-valor">${fmtBRL(totalFixaAtual)}</div>
+        <div style="font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--ink-soft);margin-top:4px;">investido: ${fmtBRL(totalFixaInvestido)}</div>
+      </div>
+      <div class="resumo-card">
+        <div class="rc-label">Ações</div>
+        <div class="rc-valor">${fmtBRL(totalAcoes)}</div>
+        <div style="font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--ink-soft);margin-top:4px;">valor investido (custo)</div>
+      </div>
+      <div class="resumo-card">
+        <div class="rc-label">Fundos Imobiliários</div>
+        <div class="rc-valor">${fmtBRL(totalFiis)}</div>
+        <div style="font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--ink-soft);margin-top:4px;">valor investido (custo)</div>
+      </div>
+    </div>
+  `;
+}
+
+// ---------- INIT ----------
+loadRendaFixa();
+loadAtivos();
+</script>
+</body>
+</html>
