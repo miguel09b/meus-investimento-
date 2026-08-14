@@ -284,6 +284,39 @@
     align-items:center;
   }
   .compra-row:last-child{border-bottom:none;}
+
+  .subsecao-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:.1em;
+    color:var(--ink-soft);
+    padding:10px 16px 2px;
+    border-top:1px solid var(--paper-line);
+  }
+  .provento-row{
+    display:grid;
+    grid-template-columns:1fr auto auto auto;
+    gap:10px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    padding:8px 0;
+    border-bottom:1px dashed var(--paper-line);
+    align-items:center;
+  }
+  .provento-row:last-child{border-bottom:none;}
+  .provento-row .valor-provento{color:var(--green-deep);font-weight:600;}
+  .badge-periodo{
+    display:inline-block;
+    font-size:9.5px;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    padding:2px 6px;
+    border-radius:2px;
+    border:1px solid var(--gold);
+    color:var(--gold);
+  }
+  .mini-form.provento-form{background:var(--paper-dim);}
   .mini-form{
     display:grid;
     grid-template-columns:1fr 1fr 1fr auto;
@@ -541,6 +574,8 @@ document.getElementById('form-fixa').addEventListener('submit', async (e) => {
 });
 
 // ---------- RENDA VARIAVEL ----------
+const LABEL_PERIODO = { mensal:'Mensal', trimestral:'Trimestral', semestral:'Semestral', anual:'Anual' };
+
 async function loadAtivos() {
   const box = document.getElementById('lista-ativos');
   const { data: ativos, error } = await supabase.from('ativos').select('*').order('ticker');
@@ -548,12 +583,16 @@ async function loadAtivos() {
   if (!ativos.length) { box.innerHTML = `<div class="empty-state">Nenhum ativo cadastrado ainda.</div>`; return; }
 
   const { data: compras } = await supabase.from('compras').select('*').order('data_compra', { ascending:false });
+  const { data: proventos } = await supabase.from('proventos').select('*').order('data_pagamento', { ascending:false });
 
   box.innerHTML = ativos.map(at => {
     const comprasDoAtivo = (compras || []).filter(c => c.ativo_id === at.id);
     const qtdTotal = comprasDoAtivo.reduce((s,c) => s + Number(c.quantidade), 0);
     const valorTotal = comprasDoAtivo.reduce((s,c) => s + Number(c.quantidade) * Number(c.valor_unitario), 0);
     const precoMedio = qtdTotal > 0 ? valorTotal / qtdTotal : 0;
+
+    const proventosDoAtivo = (proventos || []).filter(p => p.ativo_id === at.id);
+    const totalProventos = proventosDoAtivo.reduce((s,p) => s + Number(p.valor), 0);
 
     return `
     <div class="ativo-block" data-ativo="${at.id}">
@@ -566,6 +605,7 @@ async function loadAtivos() {
           <span>Cotas: <b>${fmtNum(qtdTotal, 4).replace(/\.?0+$/,'')}</b></span>
           <span>Preço médio: <b>${fmtBRL(precoMedio)}</b></span>
           <span>Investido: <b>${fmtBRL(valorTotal)}</b></span>
+          <span>Proventos recebidos: <b style="color:var(--green-deep);">${fmtBRL(totalProventos)}</b></span>
         </div>
         <button class="del-btn" data-del-ativo="${at.id}">remover ativo</button>
       </div>
@@ -584,6 +624,28 @@ async function loadAtivos() {
         <input type="number" step="0.0001" min="0" placeholder="Valor pago/cota" required data-f="valor" />
         <button type="submit">+ Compra</button>
       </form>
+
+      <div class="subsecao-label">Proventos recebidos</div>
+      <div class="compras-list">
+        ${proventosDoAtivo.length ? proventosDoAtivo.map(p => `
+          <div class="provento-row">
+            <span>${fmtData(p.data_pagamento)}</span>
+            <span class="badge-periodo">${LABEL_PERIODO[p.periodicidade] || p.periodicidade}</span>
+            <span class="valor-provento">${fmtBRL(p.valor)}</span>
+            <button class="del-btn" data-del-provento="${p.id}" style="margin:0;">remover</button>
+          </div>`).join('') : '<div class="empty-state" style="padding:10px 0;">Nenhum provento lançado ainda.</div>'}
+      </div>
+      <form class="mini-form provento-form" data-form-provento="${at.id}">
+        <input type="date" placeholder="Data do pagamento" required data-f="data" />
+        <input type="number" step="0.01" min="0" placeholder="Valor recebido (R$)" required data-f="valor" />
+        <select data-f="periodicidade" required>
+          <option value="mensal">Mensal</option>
+          <option value="trimestral">Trimestral</option>
+          <option value="semestral">Semestral</option>
+          <option value="anual">Anual</option>
+        </select>
+        <button type="submit">+ Provento</button>
+      </form>
     </div>`;
   }).join('');
 
@@ -595,6 +657,10 @@ async function loadAtivos() {
     await supabase.from('compras').delete().eq('id', b.dataset.delCompra);
     loadAtivos();
   }));
+  box.querySelectorAll('[data-del-provento]').forEach(b => b.addEventListener('click', async () => {
+    await supabase.from('proventos').delete().eq('id', b.dataset.delProvento);
+    loadAtivos();
+  }));
   box.querySelectorAll('[data-form-compra]').forEach(f => f.addEventListener('submit', async (e) => {
     e.preventDefault();
     const ativoId = f.dataset.formCompra;
@@ -604,6 +670,17 @@ async function loadAtivos() {
     const { error } = await supabase.from('compras').insert({ ativo_id: ativoId, data_compra: data, quantidade: qtd, valor_unitario: valor });
     if (error) { showMsg('msg-variavel', 'Erro: ' + error.message, true); return; }
     showMsg('msg-variavel', 'Compra lançada, preço médio atualizado.');
+    loadAtivos();
+  }));
+  box.querySelectorAll('[data-form-provento]').forEach(f => f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const ativoId = f.dataset.formProvento;
+    const data = f.querySelector('[data-f="data"]').value;
+    const valor = parseFloat(f.querySelector('[data-f="valor"]').value);
+    const periodicidade = f.querySelector('[data-f="periodicidade"]').value;
+    const { error } = await supabase.from('proventos').insert({ ativo_id: ativoId, data_pagamento: data, valor, periodicidade });
+    if (error) { showMsg('msg-variavel', 'Erro: ' + error.message, true); return; }
+    showMsg('msg-variavel', 'Provento lançado.');
     loadAtivos();
   }));
 }
@@ -627,6 +704,7 @@ async function renderResumo() {
   const { data: rendaFixa } = await supabase.from('renda_fixa').select('*');
   const { data: ativos } = await supabase.from('ativos').select('*');
   const { data: compras } = await supabase.from('compras').select('*');
+  const { data: proventos } = await supabase.from('proventos').select('*');
 
   const totalFixaInvestido = (rendaFixa || []).reduce((s,r) => s + Number(r.valor_investido), 0);
   const totalFixaAtual = (rendaFixa || []).reduce((s,r) => s + calcRendaFixa(r).valorAtual, 0);
@@ -641,6 +719,13 @@ async function renderResumo() {
     if (tickersPorTipo.acao.has(c.ativo_id)) totalAcoes += valor;
     if (tickersPorTipo.fii.has(c.ativo_id)) totalFiis += valor;
   });
+
+  let proventosAcoes = 0, proventosFiis = 0;
+  (proventos || []).forEach(p => {
+    if (tickersPorTipo.acao.has(p.ativo_id)) proventosAcoes += Number(p.valor);
+    if (tickersPorTipo.fii.has(p.ativo_id)) proventosFiis += Number(p.valor);
+  });
+  const totalProventos = proventosAcoes + proventosFiis;
 
   const totalGeral = totalFixaAtual + totalAcoes + totalFiis;
 
@@ -665,11 +750,18 @@ async function renderResumo() {
         <div class="rc-label">Ações</div>
         <div class="rc-valor">${fmtBRL(totalAcoes)}</div>
         <div style="font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--ink-soft);margin-top:4px;">valor investido (custo)</div>
+        <div style="font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--green-deep);margin-top:2px;">+ ${fmtBRL(proventosAcoes)} em proventos</div>
       </div>
       <div class="resumo-card">
         <div class="rc-label">Fundos Imobiliários</div>
         <div class="rc-valor">${fmtBRL(totalFiis)}</div>
         <div style="font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--ink-soft);margin-top:4px;">valor investido (custo)</div>
+        <div style="font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--green-deep);margin-top:2px;">+ ${fmtBRL(proventosFiis)} em proventos</div>
+      </div>
+      <div class="resumo-card">
+        <div class="rc-label">Proventos recebidos (total)</div>
+        <div class="rc-valor">${fmtBRL(totalProventos)}</div>
+        <div style="font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--ink-soft);margin-top:4px;">dividendos + JCP acumulados</div>
       </div>
     </div>
   `;
