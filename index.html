@@ -330,6 +330,15 @@
     border:1px solid var(--gold);
     color:var(--gold);
   }
+  .badge-cotacao{
+    display:inline-block;
+    font-size:10.5px;
+    padding:2px 6px;
+    border-radius:2px;
+    background:var(--paper-dim);
+    color:var(--ink-soft);
+    font-family:'IBM Plex Mono', monospace;
+  }
   .mini-form.provento-form{background:var(--paper-dim);}
   .mini-form{
     display:grid;
@@ -400,7 +409,7 @@
   }
   @media (max-width:640px){
     header h1{font-size:27px;}
-    .mini-form{grid-template-columns:1fr 1fr;}
+    .mini-form, .mini-form.provento-form{grid-template-columns:1fr 1fr !important;}
     .ledger-row{grid-template-columns:1fr;}
     .lr-values{text-align:left;}
   }
@@ -616,6 +625,22 @@ async function loadAtivos() {
     const proventosDoAtivo = (proventos || []).filter(p => p.ativo_id === at.id);
     const totalProventos = proventosDoAtivo.reduce((s,p) => s + Number(p.valor), 0);
 
+    // quantidade de cotas que o usuário tinha em cada data de provento (para calcular R$/cota)
+    const qtdEmData = (dataRef) => {
+      const compradasAte = comprasDoAtivo.filter(c => c.data_compra <= dataRef).reduce((s,c) => s + Number(c.quantidade), 0);
+      const vendidasAte = vendasDoAtivo.filter(v => v.data_venda <= dataRef).reduce((s,v) => s + Number(v.quantidade), 0);
+      return compradasAte - vendidasAte;
+    };
+
+    // última cotação informada (a mais recente com preço preenchido)
+    const proventosComCotacao = proventosDoAtivo
+      .filter(p => p.preco_cota != null)
+      .slice()
+      .sort((a,b) => b.data_pagamento.localeCompare(a.data_pagamento));
+    const ultimaCotacao = proventosComCotacao.length ? Number(proventosComCotacao[0].preco_cota) : null;
+    const valorMercado = ultimaCotacao != null ? ultimaCotacao * qtdAtual : null;
+    const diffMercado = valorMercado != null ? valorMercado - valorPosicaoAtual : null;
+
     return `
     <div class="ativo-block" data-ativo="${at.id}">
       <div class="ativo-head">
@@ -628,7 +653,8 @@ async function loadAtivos() {
           <span>Preço médio: <b>${fmtBRL(precoMedio)}</b></span>
           <span>Investido (posição): <b>${fmtBRL(valorPosicaoAtual)}</b></span>
           <span>Proventos recebidos: <b style="color:var(--green-deep);">${fmtBRL(totalProventos)}</b></span>
-          ${vendasDoAtivo.length ? `<span>Lucro em vendas: <b class="${lucroRealizado >= 0 ? '' : ''}" style="color:${lucroRealizado >= 0 ? 'var(--green-deep)' : 'var(--rust)'};">${fmtBRL(lucroRealizado)}</b></span>` : ''}
+          ${vendasDoAtivo.length ? `<span>Lucro em vendas: <b style="color:${lucroRealizado >= 0 ? 'var(--green-deep)' : 'var(--rust)'};">${fmtBRL(lucroRealizado)}</b></span>` : ''}
+          ${ultimaCotacao != null ? `<span>Valor a mercado (cota a ${fmtBRL(ultimaCotacao)}): <b style="color:${diffMercado >= 0 ? 'var(--green-deep)' : 'var(--rust)'};">${fmtBRL(valorMercado)}</b> <span style="font-size:10.5px;">(${diffMercado >= 0 ? '+' : ''}${fmtBRL(diffMercado)})</span></span>` : ''}
         </div>
         <button class="del-btn" data-del-ativo="${at.id}">remover ativo</button>
       </div>
@@ -671,17 +697,23 @@ async function loadAtivos() {
 
       <div class="subsecao-label">Proventos recebidos</div>
       <div class="compras-list">
-        ${proventosDoAtivo.length ? proventosDoAtivo.map(p => `
-          <div class="provento-row">
+        ${proventosDoAtivo.length ? proventosDoAtivo.map(p => {
+          const qtdNoDia = qtdEmData(p.data_pagamento);
+          const porCota = qtdNoDia > 0 ? Number(p.valor) / qtdNoDia : 0;
+          return `
+          <div class="provento-row" style="grid-template-columns:1fr auto auto auto auto;">
             <span>${fmtData(p.data_pagamento)}</span>
             <span class="badge-periodo">${LABEL_PERIODO[p.periodicidade] || p.periodicidade}</span>
-            <span class="valor-provento">${fmtBRL(p.valor)}</span>
+            <span class="valor-provento">${fmtBRL(p.valor)} <span style="color:var(--ink-soft);font-weight:400;">(${fmtBRL(porCota)}/cota)</span></span>
+            ${p.preco_cota != null ? `<span class="badge-cotacao">cota: ${fmtBRL(p.preco_cota)}</span>` : '<span></span>'}
             <button class="del-btn" data-del-provento="${p.id}" style="margin:0;">remover</button>
-          </div>`).join('') : '<div class="empty-state" style="padding:10px 0;">Nenhum provento lançado ainda.</div>'}
+          </div>`;
+        }).join('') : '<div class="empty-state" style="padding:10px 0;">Nenhum provento lançado ainda.</div>'}
       </div>
-      <form class="mini-form provento-form" data-form-provento="${at.id}">
+      <form class="mini-form provento-form" data-form-provento="${at.id}" style="grid-template-columns:1fr 1fr 1fr 1fr auto;">
         <input type="date" placeholder="Data do pagamento" required data-f="data" />
-        <input type="number" step="0.01" min="0" placeholder="Valor recebido (R$)" required data-f="valor" />
+        <input type="number" step="0.01" min="0" placeholder="Valor total recebido (R$)" required data-f="valor" />
+        <input type="number" step="0.01" min="0" placeholder="Preço da cota hoje (opcional)" data-f="cotacao" />
         <select data-f="periodicidade" required>
           <option value="mensal">Mensal</option>
           <option value="trimestral">Trimestral</option>
@@ -737,7 +769,9 @@ async function loadAtivos() {
     const data = f.querySelector('[data-f="data"]').value;
     const valor = parseFloat(f.querySelector('[data-f="valor"]').value);
     const periodicidade = f.querySelector('[data-f="periodicidade"]').value;
-    const { error } = await supabase.from('proventos').insert({ ativo_id: ativoId, data_pagamento: data, valor, periodicidade });
+    const cotacaoStr = f.querySelector('[data-f="cotacao"]').value;
+    const preco_cota = cotacaoStr ? parseFloat(cotacaoStr) : null;
+    const { error } = await supabase.from('proventos').insert({ ativo_id: ativoId, data_pagamento: data, valor, periodicidade, preco_cota });
     if (error) { showMsg('msg-variavel', 'Erro: ' + error.message, true); return; }
     showMsg('msg-variavel', 'Provento lançado.');
     loadAtivos();
