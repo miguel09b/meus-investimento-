@@ -16,6 +16,7 @@
     --green:#2F6B4F;
     --green-deep:#1F4A37;
     --gold:#B0812B;
+    --azul:#3B6EA8;
     --rust:#A6432C;
     --shadow: 0 1px 0 rgba(22,36,31,0.06);
   }
@@ -372,6 +373,50 @@
     gap:16px;
     margin-bottom:28px;
   }
+  .pizza-wrap{
+    display:flex;
+    align-items:center;
+    gap:30px;
+    flex-wrap:wrap;
+    margin-bottom:28px;
+    padding:22px;
+    background:var(--paper-dim);
+    border:1px solid var(--paper-line);
+    border-radius:3px;
+  }
+  .pizza{
+    width:150px;
+    height:150px;
+    border-radius:50%;
+    position:relative;
+    flex-shrink:0;
+    box-shadow:0 8px 18px rgba(0,0,0,0.22);
+  }
+  .pizza::after{
+    content:'';
+    position:absolute;
+    top:50%;left:50%;
+    transform:translate(-50%,-50%);
+    width:82px;height:82px;
+    background:var(--paper-dim);
+    border-radius:50%;
+    box-shadow: inset 0 0 0 1px var(--paper-line);
+  }
+  .pizza-center{
+    position:absolute;
+    top:50%;left:50%;
+    transform:translate(-50%,-50%);
+    text-align:center;
+    font-family:'IBM Plex Mono', monospace;
+    z-index:1;
+  }
+  .pizza-center .pc-label{font-size:8.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);}
+  .pizza-center .pc-valor{font-size:12.5px;font-weight:600;color:var(--ink);}
+  .pizza-legend{display:flex;flex-direction:column;gap:10px;}
+  .pizza-legend-item{display:flex;align-items:center;gap:9px;font-family:'IBM Plex Mono', monospace;font-size:12.5px;color:var(--ink);}
+  .pizza-legend-item .pl-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0;}
+  .pizza-legend-item .pl-pct{font-weight:700;min-width:44px;display:inline-block;}
+  .pizza-legend-item .pl-valor{color:var(--ink-soft);}
   .resumo-card{
     border:1px solid var(--paper-line);
     padding:18px;
@@ -835,6 +880,43 @@ async function renderResumo() {
 
   const totalGeral = totalFixaAtual + totalAcoes + totalFiis;
 
+  // ---- Gráfico de pizza (alocação por categoria) ----
+  const pizzaData = [
+    { label: 'Renda Fixa', valor: totalFixaAtual, cor: 'var(--green)' },
+    { label: 'Ações', valor: totalAcoes, cor: 'var(--gold)' },
+    { label: 'Fundos Imobiliários', valor: totalFiis, cor: 'var(--azul)' }
+  ].filter(d => d.valor > 0);
+
+  let acc = 0;
+  const stops = pizzaData.map(d => {
+    const pct = totalGeral > 0 ? (d.valor / totalGeral * 100) : 0;
+    const start = acc;
+    acc += pct;
+    return `${d.cor} ${start.toFixed(2)}% ${acc.toFixed(2)}%`;
+  }).join(', ');
+
+  const pizzaHtml = pizzaData.length ? `
+    <div class="pizza-wrap">
+      <div class="pizza" style="background: conic-gradient(${stops});">
+        <div class="pizza-center">
+          <div class="pc-label">Total</div>
+          <div class="pc-valor">${fmtBRL(totalGeral)}</div>
+        </div>
+      </div>
+      <div class="pizza-legend">
+        ${pizzaData.map(d => {
+          const pct = totalGeral > 0 ? (d.valor / totalGeral * 100) : 0;
+          return `
+          <div class="pizza-legend-item">
+            <span class="pl-dot" style="background:${d.cor};"></span>
+            <span class="pl-pct">${fmtNum(pct,1)}%</span>
+            <span>${d.label}</span>
+            <span class="pl-valor">— ${fmtBRL(d.valor)}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : '';
+
   box.innerHTML = `
     <div style="display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin-bottom:26px;">
       <div class="selo ${rendimentoFixa < 0 ? 'negativo' : ''}">
@@ -846,6 +928,7 @@ async function renderResumo() {
         <div style="font-family:'Fraunces', serif;font-weight:700;font-size:34px;color:var(--ink);">${fmtBRL(totalGeral)}</div>
       </div>
     </div>
+    ${pizzaHtml}
     <div class="resumo-grid">
       <div class="resumo-card">
         <div class="rc-label">Renda Fixa</div>
