@@ -417,6 +417,33 @@
   .pizza-legend-item .pl-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0;}
   .pizza-legend-item .pl-pct{font-weight:700;min-width:44px;display:inline-block;}
   .pizza-legend-item .pl-valor{color:var(--ink-soft);}
+
+  .pizza-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(270px,1fr));
+    gap:16px;
+    margin-bottom:28px;
+  }
+  .pizza-card{
+    background:var(--paper-dim);
+    border:1px solid var(--paper-line);
+    border-radius:3px;
+    padding:18px;
+  }
+  .pizza-card h3{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:15px;
+    margin:0 0 14px;
+    color:var(--ink);
+  }
+  .pizza-mini-wrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+  .pizza-mini-wrap svg circle{cursor:pointer;transition:opacity .1s ease;}
+  .pizza-mini-wrap svg circle:hover{opacity:0.8;}
+  .pizza-legend-mini{display:flex;flex-direction:column;gap:6px;flex:1;min-width:140px;}
+  .pizza-legend-mini-item{display:flex;align-items:center;gap:7px;font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--ink);}
+  .pizza-legend-mini-item .pl-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+  .pizza-legend-mini-item .pl-pct{font-weight:700;min-width:38px;display:inline-block;}
   .resumo-card{
     border:1px solid var(--paper-line);
     padding:18px;
@@ -553,6 +580,51 @@ const fmtNum = (v, casas = 2) => (v ?? 0).toLocaleString('pt-BR', { minimumFract
 const fmtData = (d) => new Date(d + 'T00:00:00').toLocaleDateString('pt-BR');
 
 document.getElementById('dataHoje').textContent = 'Hoje · ' + new Date().toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+const PALETA = ['#2F6B4F','#B0812B','#3B6EA8','#A6432C','#6B4C9A','#4C8C7A','#C2703D','#8A9A5B','#5A7A99','#B0562F'];
+
+// Gera um donut SVG com tooltip nativo (hover) por fatia. data: [{label, valor}]
+function pizzaChart(data, { size = 130, stroke = 26 } = {}) {
+  const total = data.reduce((s, d) => s + Number(d.valor), 0);
+  if (!(total > 0) || !data.length) return null;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  let offsetAcc = 0;
+  const circles = data.map((d, i) => {
+    const pct = d.valor / total * 100;
+    const len = (pct / 100) * c;
+    const dashoffset = -offsetAcc;
+    offsetAcc += len;
+    const cor = d.cor || PALETA[i % PALETA.length];
+    return `<circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${cor}" stroke-width="${stroke}" stroke-dasharray="${len.toFixed(2)} ${(c-len).toFixed(2)}" stroke-dashoffset="${dashoffset.toFixed(2)}" transform="rotate(-90 ${size/2} ${size/2})"><title>${escapeHtml(d.label)}: ${fmtNum(pct,1)}% — ${fmtBRL(d.valor)}</title></circle>`;
+  }).join('');
+  return { svg: `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${circles}</svg>`, total };
+}
+
+function pizzaCard(titulo, data) {
+  const withColor = data.map((d, i) => ({ ...d, cor: PALETA[i % PALETA.length] }));
+  const chart = pizzaChart(withColor);
+  if (!chart) return `<div class="pizza-card"><h3>${titulo}</h3><div class="empty-state" style="padding:16px 0;">Nada lançado ainda.</div></div>`;
+  return `
+  <div class="pizza-card">
+    <h3>${titulo}</h3>
+    <div class="pizza-mini-wrap">
+      ${chart.svg}
+      <div class="pizza-legend-mini">
+        ${withColor.map(d => `
+          <div class="pizza-legend-mini-item">
+            <span class="pl-dot" style="background:${d.cor};"></span>
+            <span class="pl-pct">${fmtNum(d.valor / chart.total * 100, 1)}%</span>
+            <span>${escapeHtml(d.label)}</span>
+          </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
 
 // ---------- TABS ----------
 document.querySelectorAll('nav.tabs button').forEach(btn => {
@@ -891,6 +963,7 @@ async function renderResumo() {
 
   // posição atual (após vendas) e lucro realizado, calculados por ativo
   let totalAcoes = 0, totalFiis = 0, lucroRealizadoAcoes = 0, lucroRealizadoFiis = 0;
+  const acoesBreakdown = [], fiisBreakdown = [];
   (ativos || []).forEach(at => {
     const comprasDoAtivo = (compras || []).filter(c => c.ativo_id === at.id);
     const qtdComprada = comprasDoAtivo.reduce((s,c) => s + Number(c.quantidade), 0);
@@ -903,10 +976,20 @@ async function renderResumo() {
 
     const valorPosicaoAtual = precoMedio * (qtdComprada - qtdVendida);
 
-    if (at.tipo === 'acao') { totalAcoes += valorPosicaoAtual; lucroRealizadoAcoes += lucroRealizado; }
-    if (at.tipo === 'fii') { totalFiis += valorPosicaoAtual; lucroRealizadoFiis += lucroRealizado; }
+    if (at.tipo === 'acao') {
+      totalAcoes += valorPosicaoAtual; lucroRealizadoAcoes += lucroRealizado;
+      if (valorPosicaoAtual > 0) acoesBreakdown.push({ label: at.ticker, valor: valorPosicaoAtual });
+    }
+    if (at.tipo === 'fii') {
+      totalFiis += valorPosicaoAtual; lucroRealizadoFiis += lucroRealizado;
+      if (valorPosicaoAtual > 0) fiisBreakdown.push({ label: at.ticker, valor: valorPosicaoAtual });
+    }
   });
   const lucroRealizadoTotal = lucroRealizadoAcoes + lucroRealizadoFiis;
+
+  const rendaFixaBreakdown = (rendaFixa || [])
+    .map(r => ({ label: r.nome, valor: calcRendaFixa(r).valorAtual }))
+    .filter(d => d.valor > 0);
 
   let proventosAcoes = 0, proventosFiis = 0;
   (proventos || []).forEach(p => {
@@ -966,6 +1049,11 @@ async function renderResumo() {
       </div>
     </div>
     ${pizzaHtml}
+    <div class="pizza-grid">
+      ${pizzaCard('Renda Fixa por investimento', rendaFixaBreakdown)}
+      ${pizzaCard('Ações por ativo', acoesBreakdown)}
+      ${pizzaCard('Fundos Imobiliários por ativo', fiisBreakdown)}
+    </div>
     <div class="resumo-grid">
       <div class="resumo-card">
         <div class="rc-label">Renda Fixa</div>
