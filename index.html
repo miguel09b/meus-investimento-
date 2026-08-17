@@ -1114,15 +1114,25 @@ async function renderResumo() {
     const qtdVendida = vendasDoAtivo.reduce((s,v) => s + Number(v.quantidade), 0);
     const lucroRealizado = vendasDoAtivo.reduce((s,v) => s + (Number(v.valor_unitario) - precoMedio) * Number(v.quantidade), 0);
 
-    const valorPosicaoAtual = precoMedio * (qtdComprada - qtdVendida);
+    const qtdAtual = qtdComprada - qtdVendida;
+    const valorPosicaoCusto = precoMedio * qtdAtual;
+
+    // se houver cotação recente informada num provento, o valor a mercado prevalece sobre o custo
+    const proventosDoAtivo = (proventos || []).filter(p => p.ativo_id === at.id);
+    const comCotacao = proventosDoAtivo
+      .filter(p => p.preco_cota != null)
+      .slice()
+      .sort((a,b) => b.data_pagamento.localeCompare(a.data_pagamento));
+    const ultimaCotacao = comCotacao.length ? Number(comCotacao[0].preco_cota) : null;
+    const valorAtualAtivo = ultimaCotacao != null ? ultimaCotacao * qtdAtual : valorPosicaoCusto;
 
     if (at.tipo === 'acao') {
-      totalAcoes += valorPosicaoAtual; lucroRealizadoAcoes += lucroRealizado;
-      if (valorPosicaoAtual > 0) acoesBreakdown.push({ label: at.ticker, valor: valorPosicaoAtual });
+      totalAcoes += valorAtualAtivo; lucroRealizadoAcoes += lucroRealizado;
+      if (valorAtualAtivo > 0) acoesBreakdown.push({ label: at.ticker, valor: valorAtualAtivo });
     }
     if (at.tipo === 'fii') {
-      totalFiis += valorPosicaoAtual; lucroRealizadoFiis += lucroRealizado;
-      if (valorPosicaoAtual > 0) fiisBreakdown.push({ label: at.ticker, valor: valorPosicaoAtual });
+      totalFiis += valorAtualAtivo; lucroRealizadoFiis += lucroRealizado;
+      if (valorAtualAtivo > 0) fiisBreakdown.push({ label: at.ticker, valor: valorAtualAtivo });
     }
   });
   const lucroRealizadoTotal = lucroRealizadoAcoes + lucroRealizadoFiis;
@@ -1203,13 +1213,13 @@ async function renderResumo() {
       <div class="resumo-card">
         <div class="rc-label">Ações</div>
         <div class="rc-valor">${fmtBRL(totalAcoes)}</div>
-        <div style="font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--ink-soft);margin-top:4px;">posição atual (custo)</div>
+        <div style="font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--ink-soft);margin-top:4px;">posição atual (mercado, quando informado)</div>
         <div style="font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--green-deep);margin-top:2px;">+ ${fmtBRL(proventosAcoes)} em proventos</div>
       </div>
       <div class="resumo-card">
         <div class="rc-label">Fundos Imobiliários</div>
         <div class="rc-valor">${fmtBRL(totalFiis)}</div>
-        <div style="font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--ink-soft);margin-top:4px;">posição atual (custo)</div>
+        <div style="font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--ink-soft);margin-top:4px;">posição atual (mercado, quando informado)</div>
         <div style="font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--green-deep);margin-top:2px;">+ ${fmtBRL(proventosFiis)} em proventos</div>
       </div>
       <div class="resumo-card">
