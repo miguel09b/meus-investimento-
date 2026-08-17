@@ -444,6 +444,39 @@
   .pizza-legend-mini-item{display:flex;align-items:center;gap:7px;font-family:'IBM Plex Mono', monospace;font-size:11.5px;color:var(--ink);}
   .pizza-legend-mini-item .pl-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
   .pizza-legend-mini-item .pl-pct{font-weight:700;min-width:38px;display:inline-block;}
+
+  .watch-block{
+    border:1px solid var(--paper-line);
+    border-radius:3px;
+    margin-bottom:18px;
+    overflow:hidden;
+  }
+  .watch-head{
+    background:var(--paper-dim);
+    padding:14px 16px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:10px 8px;
+  }
+  .watch-head .ticker{
+    font-family:'Fraunces', serif;
+    font-weight:700;
+    font-size:19px;
+  }
+  .obs-row{
+    display:grid;
+    grid-template-columns:1fr auto auto;
+    gap:10px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    padding:8px 0;
+    border-bottom:1px dashed var(--paper-line);
+    align-items:center;
+  }
+  .obs-row:last-child{border-bottom:none;}
+  .mini-form.watch-form{background:var(--paper);grid-template-columns:1fr 1fr auto;}
   .resumo-card{
     border:1px solid var(--paper-line);
     padding:18px;
@@ -500,6 +533,7 @@
   <nav class="tabs">
     <button data-tab="fixa" class="active">Renda Fixa</button>
     <button data-tab="variavel">Ações &amp; FIIs</button>
+    <button data-tab="watch">Fico de Olho</button>
     <button data-tab="resumo">Resumo</button>
   </nav>
 
@@ -558,6 +592,31 @@
     </form>
 
     <div id="lista-ativos"></div>
+  </section>
+
+  <!-- FICO DE OLHO -->
+  <section class="page" id="page-watch">
+    <h2 class="section-title">Fico de Olho</h2>
+    <p class="section-sub">Ativos que você está de olho, mas ainda não comprou. Anote o preço que viu em cada data pra acompanhar a evolução antes de decidir.</p>
+    <div class="status-msg" id="msg-watch"></div>
+
+    <form class="entry-form" id="form-watch">
+      <div class="field">
+        <label>Nome do ativo</label>
+        <input type="text" id="w-nome" placeholder="Ex: Coca-Cola (KO)" required />
+      </div>
+      <div class="field">
+        <label>Data que olhou</label>
+        <input type="date" id="w-data" required />
+      </div>
+      <div class="field">
+        <label>Valor visto (R$)</label>
+        <input type="number" id="w-valor" step="0.01" min="0" required />
+      </div>
+      <button type="submit">+ Adicionar à lista</button>
+    </form>
+
+    <div id="lista-watch"></div>
   </section>
 
   <!-- RESUMO -->
@@ -943,6 +1002,87 @@ document.getElementById('form-ativo').addEventListener('submit', async (e) => {
   loadAtivos();
 });
 
+// ---------- FICO DE OLHO (watchlist) ----------
+async function loadWatchlist() {
+  const box = document.getElementById('lista-watch');
+  const { data, error } = await supabase.from('watchlist').select('*').order('data_observacao', { ascending:true });
+  if (error) { box.innerHTML = `<div class="empty-state">Erro ao carregar: ${error.message}</div>`; return; }
+  if (!data.length) { box.innerHTML = `<div class="empty-state">Nenhum ativo na lista ainda.</div>`; return; }
+
+  // agrupa por nome (case-insensitive)
+  const grupos = {};
+  data.forEach(w => {
+    const chave = w.nome.trim().toLowerCase();
+    if (!grupos[chave]) grupos[chave] = { nome: w.nome, itens: [] };
+    grupos[chave].itens.push(w);
+  });
+
+  box.innerHTML = Object.values(grupos).map(g => {
+    const itens = g.itens.slice().sort((a,b) => a.data_observacao.localeCompare(b.data_observacao));
+    const primeira = itens[0];
+    const ultima = itens[itens.length - 1];
+    const variacao = primeira.valor > 0 ? (Number(ultima.valor) - Number(primeira.valor)) / Number(primeira.valor) * 100 : null;
+
+    return `
+    <div class="watch-block" data-watch-nome="${escapeHtml(g.nome)}">
+      <div class="watch-head">
+        <div>
+          <span class="ticker">${escapeHtml(g.nome)}</span>
+        </div>
+        <div class="ativo-stats">
+          <span>Último preço visto: <b>${fmtBRL(ultima.valor)}</b> (${fmtData(ultima.data_observacao)})</span>
+          ${itens.length > 1 && variacao != null ? `<span>Desde a 1ª observação: <b style="color:${variacao >= 0 ? 'var(--green-deep)' : 'var(--rust)'};">${variacao >= 0 ? '+' : ''}${fmtNum(variacao,1)}%</b></span>` : ''}
+        </div>
+        <button class="del-btn" data-del-watch-grupo="${escapeHtml(g.nome)}">remover da lista</button>
+      </div>
+      <div class="compras-list">
+        ${itens.map(w => `
+          <div class="obs-row">
+            <span>${fmtData(w.data_observacao)}</span>
+            <span>${fmtBRL(w.valor)}</span>
+            <button class="del-btn" data-del-watch="${w.id}" style="margin:0;">remover</button>
+          </div>`).join('')}
+      </div>
+      <form class="mini-form watch-form" data-form-watch-obs="${escapeHtml(g.nome)}">
+        <input type="date" required data-f="data" />
+        <input type="number" step="0.01" min="0" placeholder="Novo valor visto (R$)" required data-f="valor" />
+        <button type="submit">+ Observação</button>
+      </form>
+    </div>`;
+  }).join('');
+
+  box.querySelectorAll('[data-del-watch]').forEach(b => b.addEventListener('click', async () => {
+    await supabase.from('watchlist').delete().eq('id', b.dataset.delWatch);
+    loadWatchlist();
+  }));
+  box.querySelectorAll('[data-del-watch-grupo]').forEach(b => b.addEventListener('click', async () => {
+    await supabase.from('watchlist').delete().eq('nome', b.dataset.delWatchGrupo);
+    loadWatchlist();
+  }));
+  box.querySelectorAll('[data-form-watch-obs]').forEach(f => f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const nome = f.dataset.formWatchObs;
+    const data = f.querySelector('[data-f="data"]').value;
+    const valor = parseFloat(f.querySelector('[data-f="valor"]').value);
+    const { error } = await supabase.from('watchlist').insert({ nome, data_observacao: data, valor });
+    if (error) { showMsg('msg-watch', 'Erro: ' + error.message, true); return; }
+    showMsg('msg-watch', 'Observação adicionada.');
+    loadWatchlist();
+  }));
+}
+
+document.getElementById('form-watch').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const nome = document.getElementById('w-nome').value.trim();
+  const data_observacao = document.getElementById('w-data').value;
+  const valor = parseFloat(document.getElementById('w-valor').value);
+  const { error } = await supabase.from('watchlist').insert({ nome, data_observacao, valor });
+  if (error) { showMsg('msg-watch', 'Erro: ' + error.message, true); return; }
+  e.target.reset();
+  showMsg('msg-watch', 'Adicionado à lista de observação.');
+  loadWatchlist();
+});
+
 // ---------- RESUMO ----------
 async function renderResumo() {
   const box = document.getElementById('resumo-conteudo');
@@ -1089,6 +1229,7 @@ async function renderResumo() {
 // ---------- INIT ----------
 loadRendaFixa();
 loadAtivos();
+loadWatchlist();
 </script>
 </body>
 </html>
