@@ -257,7 +257,7 @@
     justify-content:space-between;
     align-items:center;
     flex-wrap:wrap;
-    gap:8px;
+    gap:10px 8px;
   }
   .ativo-head .ticker{
     font-family:'Fraunces', serif;
@@ -643,6 +643,7 @@ document.getElementById('form-fixa').addEventListener('submit', async (e) => {
 
 // ---------- RENDA VARIAVEL ----------
 const LABEL_PERIODO = { mensal:'Mensal', trimestral:'Trimestral', semestral:'Semestral', anual:'Anual' };
+const editingAtivoIds = new Set();
 
 async function loadAtivos() {
   const box = document.getElementById('lista-ativos');
@@ -689,10 +690,22 @@ async function loadAtivos() {
     return `
     <div class="ativo-block" data-ativo="${at.id}">
       <div class="ativo-head">
+        ${editingAtivoIds.has(at.id) ? `
+        <form class="mini-form" data-form-edit-ativo="${at.id}" style="grid-template-columns:1fr 1fr auto auto;padding:0;background:transparent;flex:1;">
+          <input type="text" value="${at.ticker}" required data-f="ticker" style="text-transform:uppercase;" />
+          <select data-f="tipo" required>
+            <option value="fii" ${at.tipo === 'fii' ? 'selected' : ''}>Fundo Imobiliário</option>
+            <option value="acao" ${at.tipo === 'acao' ? 'selected' : ''}>Ação</option>
+          </select>
+          <button type="submit">Salvar</button>
+          <button type="button" class="del-btn" data-cancel-ativo="${at.id}" style="margin:0;">cancelar</button>
+        </form>
+        ` : `
         <div>
           <span class="ticker">${at.ticker}</span>
           <span class="badge-tipo">${at.tipo === 'fii' ? 'FII' : 'Ação'}</span>
         </div>
+        `}
         <div class="ativo-stats">
           <span>Cotas atuais: <b>${fmtNum(qtdAtual, 4).replace(/\.?0+$/,'')}</b></span>
           <span>Preço médio: <b>${fmtBRL(precoMedio)}</b></span>
@@ -701,7 +714,12 @@ async function loadAtivos() {
           ${vendasDoAtivo.length ? `<span>Lucro em vendas: <b style="color:${lucroRealizado >= 0 ? 'var(--green-deep)' : 'var(--rust)'};">${fmtBRL(lucroRealizado)}</b></span>` : ''}
           ${ultimaCotacao != null ? `<span>Valor a mercado (cota a ${fmtBRL(ultimaCotacao)}): <b style="color:${diffMercado >= 0 ? 'var(--green-deep)' : 'var(--rust)'};">${fmtBRL(valorMercado)}</b> <span style="font-size:10.5px;">(${diffMercado >= 0 ? '+' : ''}${fmtBRL(diffMercado)})</span></span>` : ''}
         </div>
-        <button class="del-btn" data-del-ativo="${at.id}">remover ativo</button>
+        ${!editingAtivoIds.has(at.id) ? `
+        <div style="display:flex;gap:14px;">
+          <button class="del-btn" data-edit-ativo="${at.id}" style="margin:0;color:var(--ink-soft);">editar</button>
+          <button class="del-btn" data-del-ativo="${at.id}" style="margin:0;">remover ativo</button>
+        </div>
+        ` : ''}
       </div>
       <div class="compras-list">
         ${comprasDoAtivo.length ? comprasDoAtivo.map(c => `
@@ -772,6 +790,25 @@ async function loadAtivos() {
 
   box.querySelectorAll('[data-del-ativo]').forEach(b => b.addEventListener('click', async () => {
     await supabase.from('ativos').delete().eq('id', b.dataset.delAtivo);
+    loadAtivos();
+  }));
+  box.querySelectorAll('[data-edit-ativo]').forEach(b => b.addEventListener('click', () => {
+    editingAtivoIds.add(b.dataset.editAtivo);
+    loadAtivos();
+  }));
+  box.querySelectorAll('[data-cancel-ativo]').forEach(b => b.addEventListener('click', () => {
+    editingAtivoIds.delete(b.dataset.cancelAtivo);
+    loadAtivos();
+  }));
+  box.querySelectorAll('[data-form-edit-ativo]').forEach(f => f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const ativoId = f.dataset.formEditAtivo;
+    const ticker = f.querySelector('[data-f="ticker"]').value.trim().toUpperCase();
+    const tipo = f.querySelector('[data-f="tipo"]').value;
+    const { error } = await supabase.from('ativos').update({ ticker, tipo }).eq('id', ativoId);
+    if (error) { showMsg('msg-variavel', 'Erro: ' + error.message, true); return; }
+    editingAtivoIds.delete(ativoId);
+    showMsg('msg-variavel', 'Ativo atualizado.');
     loadAtivos();
   }));
   box.querySelectorAll('[data-del-compra]').forEach(b => b.addEventListener('click', async () => {
