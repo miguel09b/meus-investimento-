@@ -477,6 +477,41 @@
   }
   .obs-row:last-child{border-bottom:none;}
   .mini-form.watch-form{background:var(--paper);grid-template-columns:1fr 1fr auto;}
+
+  .taxa-row{
+    display:grid;
+    grid-template-columns:1fr auto auto;
+    gap:10px;
+    align-items:center;
+    padding:12px 16px;
+    background:var(--paper-dim);
+    border:1px solid var(--paper-line);
+    border-radius:3px;
+    margin-bottom:10px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+  }
+  .taxa-row .taxa-nome{font-family:'Fraunces', serif;font-weight:600;font-size:15px;color:var(--ink);}
+  .taxa-row form{display:flex;align-items:center;gap:6px;}
+  .taxa-row input{
+    width:80px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    padding:6px 8px;
+    border:1px solid var(--paper-line);
+    border-radius:2px;
+  }
+  .taxa-row button{
+    font-family:'Inter',sans-serif;
+    font-weight:600;
+    font-size:11.5px;
+    background:var(--ink);
+    color:var(--paper);
+    border:none;
+    border-radius:2px;
+    padding:6px 10px;
+    cursor:pointer;
+  }
   .resumo-card{
     border:1px solid var(--paper-line);
     padding:18px;
@@ -534,6 +569,7 @@
     <button data-tab="fixa" class="active">Renda Fixa</button>
     <button data-tab="variavel">Ações &amp; FIIs</button>
     <button data-tab="watch">Fico de Olho</button>
+    <button data-tab="cotacoes">Cotações</button>
     <button data-tab="resumo">Resumo</button>
   </nav>
 
@@ -619,6 +655,38 @@
     <div id="lista-watch"></div>
   </section>
 
+  <!-- COTAÇÕES -->
+  <section class="page" id="page-cotacoes">
+    <h2 class="section-title">Cotações</h2>
+    <p class="section-sub">Atualize aqui o preço mais recente que você viu de cada ação/FII e a taxa atual da renda fixa. O Resumo passa a usar sempre o último valor registrado.</p>
+    <div class="status-msg" id="msg-cotacoes"></div>
+
+    <h3 style="font-family:'Fraunces', serif;font-size:16px;margin:18px 0 10px;color:var(--ink);">Ações &amp; FIIs</h3>
+    <form class="entry-form" id="form-cotacao">
+      <div class="field full">
+        <label>Ativo</label>
+        <select id="cot-ativo" required></select>
+      </div>
+      <div class="field">
+        <label>Data que olhou</label>
+        <input type="date" id="cot-data" required />
+      </div>
+      <div class="field">
+        <label>Hora</label>
+        <input type="time" id="cot-hora" required />
+      </div>
+      <div class="field">
+        <label>Preço atual (R$)</label>
+        <input type="number" id="cot-valor" step="0.0001" min="0" required />
+      </div>
+      <button type="submit">+ Atualizar preço</button>
+    </form>
+    <div id="lista-cotacoes-ativos"></div>
+
+    <h3 style="font-family:'Fraunces', serif;font-size:16px;margin:30px 0 10px;color:var(--ink);">Renda Fixa</h3>
+    <div id="lista-cotacoes-fixa"></div>
+  </section>
+
   <!-- RESUMO -->
   <section class="page" id="page-resumo">
     <h2 class="section-title">Resumo Geral</h2>
@@ -640,11 +708,36 @@ const fmtData = (d) => new Date(d + 'T00:00:00').toLocaleDateString('pt-BR');
 
 document.getElementById('dataHoje').textContent = 'Hoje · ' + new Date().toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
 
+(function preencherDataHoraAtual(){
+  const agora = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const dataStr = `${agora.getFullYear()}-${pad(agora.getMonth()+1)}-${pad(agora.getDate())}`;
+  const horaStr = `${pad(agora.getHours())}:${pad(agora.getMinutes())}`;
+  const dCampo = document.getElementById('cot-data');
+  const hCampo = document.getElementById('cot-hora');
+  if (dCampo) dCampo.value = dataStr;
+  if (hCampo) hCampo.value = horaStr;
+})();
+
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
 const PALETA = ['#2F6B4F','#B0812B','#3B6EA8','#A6432C','#6B4C9A','#4C8C7A','#C2703D','#8A9A5B','#5A7A99','#B0562F'];
+
+// Combina proventos.preco_cota + cotacoes, retorna o registro mais recente (por data+hora) de um ativo
+function ultimaCotacaoDe(ativoId, proventosAll, cotacoesAll) {
+  const candidatos = [];
+  (proventosAll || []).filter(p => p.ativo_id === ativoId && p.preco_cota != null).forEach(p => {
+    candidatos.push({ ts: p.data_pagamento + 'T00:00', valor: Number(p.preco_cota), data: p.data_pagamento, hora: null });
+  });
+  (cotacoesAll || []).filter(c => c.ativo_id === ativoId).forEach(c => {
+    candidatos.push({ ts: c.data + 'T' + (c.hora || '00:00'), valor: Number(c.valor), data: c.data, hora: c.hora });
+  });
+  if (!candidatos.length) return null;
+  candidatos.sort((a, b) => b.ts.localeCompare(a.ts));
+  return candidatos[0];
+}
 
 // Gera um donut SVG com tooltip nativo (hover) por fatia. data: [{label, valor}]
 function pizzaChart(data, { size = 130, stroke = 26 } = {}) {
@@ -785,6 +878,7 @@ async function loadAtivos() {
   const { data: compras } = await supabase.from('compras').select('*').order('data_compra', { ascending:false });
   const { data: proventos } = await supabase.from('proventos').select('*').order('data_pagamento', { ascending:false });
   const { data: vendas } = await supabase.from('vendas').select('*').order('data_venda', { ascending:false });
+  const { data: cotacoesTabela } = await supabase.from('cotacoes').select('*');
 
   box.innerHTML = ativos.map(at => {
     const comprasDoAtivo = (compras || []).filter(c => c.ativo_id === at.id);
@@ -809,12 +903,9 @@ async function loadAtivos() {
       return compradasAte - vendidasAte;
     };
 
-    // última cotação informada (a mais recente com preço preenchido)
-    const proventosComCotacao = proventosDoAtivo
-      .filter(p => p.preco_cota != null)
-      .slice()
-      .sort((a,b) => b.data_pagamento.localeCompare(a.data_pagamento));
-    const ultimaCotacao = proventosComCotacao.length ? Number(proventosComCotacao[0].preco_cota) : null;
+    // última cotação informada (proventos com preço + cotações lançadas na aba Cotações)
+    const ultimaInfo = ultimaCotacaoDe(at.id, proventos, cotacoesTabela);
+    const ultimaCotacao = ultimaInfo ? ultimaInfo.valor : null;
     const valorMercado = ultimaCotacao != null ? ultimaCotacao * qtdAtual : null;
     const diffMercado = valorMercado != null ? valorMercado - valorPosicaoAtual : null;
 
@@ -1083,6 +1174,103 @@ document.getElementById('form-watch').addEventListener('submit', async (e) => {
   loadWatchlist();
 });
 
+// ---------- COTAÇÕES ----------
+async function loadCotacoes() {
+  const { data: ativos } = await supabase.from('ativos').select('*').order('ticker');
+  const { data: proventos } = await supabase.from('proventos').select('*');
+  const { data: cotacoesTabela } = await supabase.from('cotacoes').select('*').order('data', { ascending:false });
+  const { data: rendaFixa } = await supabase.from('renda_fixa').select('*').order('nome');
+
+  // popula o select do formulário
+  const sel = document.getElementById('cot-ativo');
+  const valorAtualSel = sel.value;
+  sel.innerHTML = (ativos || []).map(at => `<option value="${at.id}">${escapeHtml(at.ticker)} (${at.tipo === 'fii' ? 'FII' : 'Ação'})</option>`).join('');
+  if (valorAtualSel) sel.value = valorAtualSel;
+
+  // ---- lista de ativos com última cotação + histórico ----
+  const boxAtivos = document.getElementById('lista-cotacoes-ativos');
+  if (!ativos || !ativos.length) {
+    boxAtivos.innerHTML = '<div class="empty-state">Cadastre um ativo na aba "Ações & FIIs" primeiro.</div>';
+  } else {
+    boxAtivos.innerHTML = ativos.map(at => {
+      const historico = (cotacoesTabela || []).filter(c => c.ativo_id === at.id);
+      const ultimaInfo = ultimaCotacaoDe(at.id, proventos, cotacoesTabela);
+      return `
+      <div class="watch-block">
+        <div class="watch-head">
+          <div>
+            <span class="ticker">${escapeHtml(at.ticker)}</span>
+            <span class="badge-tipo">${at.tipo === 'fii' ? 'FII' : 'Ação'}</span>
+          </div>
+          <div class="ativo-stats">
+            ${ultimaInfo ? `<span>Última cotação: <b>${fmtBRL(ultimaInfo.valor)}</b> (${fmtData(ultimaInfo.data)}${ultimaInfo.hora ? ' às ' + ultimaInfo.hora : ''})</span>` : '<span>Nenhuma cotação registrada ainda.</span>'}
+          </div>
+        </div>
+        ${historico.length ? `<div class="compras-list">
+          ${historico.slice().sort((a,b) => (b.data+b.hora).localeCompare(a.data+a.hora)).map(c => `
+            <div class="obs-row">
+              <span>${fmtData(c.data)} às ${c.hora}</span>
+              <span>${fmtBRL(c.valor)}</span>
+              <button class="del-btn" data-del-cotacao="${c.id}" style="margin:0;">remover</button>
+            </div>`).join('')}
+        </div>` : ''}
+      </div>`;
+    }).join('');
+
+    boxAtivos.querySelectorAll('[data-del-cotacao]').forEach(b => b.addEventListener('click', async () => {
+      await supabase.from('cotacoes').delete().eq('id', b.dataset.delCotacao);
+      loadCotacoes();
+      loadAtivos();
+    }));
+  }
+
+  // ---- lista de renda fixa com edição rápida da taxa ----
+  const boxFixa = document.getElementById('lista-cotacoes-fixa');
+  if (!rendaFixa || !rendaFixa.length) {
+    boxFixa.innerHTML = '<div class="empty-state">Nenhum investimento de renda fixa cadastrado ainda.</div>';
+  } else {
+    boxFixa.innerHTML = rendaFixa.map(r => `
+      <div class="taxa-row">
+        <span class="taxa-nome">${escapeHtml(r.nome)}</span>
+        <span>Taxa atual: <b>${fmtNum(r.taxa_aa)}% a.a.</b></span>
+        <form data-form-taxa="${r.id}">
+          <input type="number" step="0.01" min="0" value="${r.taxa_aa}" data-f="taxa" required />
+          <button type="submit">Atualizar taxa</button>
+        </form>
+      </div>`).join('');
+
+    boxFixa.querySelectorAll('[data-form-taxa]').forEach(f => f.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = f.dataset.formTaxa;
+      const taxa_aa = parseFloat(f.querySelector('[data-f="taxa"]').value);
+      const { error } = await supabase.from('renda_fixa').update({ taxa_aa }).eq('id', id);
+      if (error) { showMsg('msg-cotacoes', 'Erro: ' + error.message, true); return; }
+      showMsg('msg-cotacoes', 'Taxa atualizada.');
+      loadCotacoes();
+      loadRendaFixa();
+    }));
+  }
+}
+
+document.getElementById('form-cotacao').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const ativo_id = document.getElementById('cot-ativo').value;
+  const data = document.getElementById('cot-data').value;
+  const hora = document.getElementById('cot-hora').value;
+  const valor = parseFloat(document.getElementById('cot-valor').value);
+  if (!ativo_id) { showMsg('msg-cotacoes', 'Cadastre um ativo primeiro.', true); return; }
+  const { error } = await supabase.from('cotacoes').insert({ ativo_id, data, hora, valor });
+  if (error) { showMsg('msg-cotacoes', 'Erro: ' + error.message, true); return; }
+  document.getElementById('cot-valor').value = '';
+  const agora = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  document.getElementById('cot-data').value = `${agora.getFullYear()}-${pad(agora.getMonth()+1)}-${pad(agora.getDate())}`;
+  document.getElementById('cot-hora').value = `${pad(agora.getHours())}:${pad(agora.getMinutes())}`;
+  showMsg('msg-cotacoes', 'Preço atualizado.');
+  loadCotacoes();
+  loadAtivos();
+});
+
 // ---------- RESUMO ----------
 async function renderResumo() {
   const box = document.getElementById('resumo-conteudo');
@@ -1093,6 +1281,7 @@ async function renderResumo() {
   const { data: compras } = await supabase.from('compras').select('*');
   const { data: proventos } = await supabase.from('proventos').select('*');
   const { data: vendas } = await supabase.from('vendas').select('*');
+  const { data: cotacoesTabela } = await supabase.from('cotacoes').select('*');
 
   const totalFixaInvestido = (rendaFixa || []).reduce((s,r) => s + Number(r.valor_investido), 0);
   const totalFixaAtual = (rendaFixa || []).reduce((s,r) => s + calcRendaFixa(r).valorAtual, 0);
@@ -1117,13 +1306,9 @@ async function renderResumo() {
     const qtdAtual = qtdComprada - qtdVendida;
     const valorPosicaoCusto = precoMedio * qtdAtual;
 
-    // se houver cotação recente informada num provento, o valor a mercado prevalece sobre o custo
-    const proventosDoAtivo = (proventos || []).filter(p => p.ativo_id === at.id);
-    const comCotacao = proventosDoAtivo
-      .filter(p => p.preco_cota != null)
-      .slice()
-      .sort((a,b) => b.data_pagamento.localeCompare(a.data_pagamento));
-    const ultimaCotacao = comCotacao.length ? Number(comCotacao[0].preco_cota) : null;
+    // se houver cotação recente informada (provento ou aba Cotações), o valor a mercado prevalece sobre o custo
+    const ultimaInfo = ultimaCotacaoDe(at.id, proventos, cotacoesTabela);
+    const ultimaCotacao = ultimaInfo ? ultimaInfo.valor : null;
     const valorAtualAtivo = ultimaCotacao != null ? ultimaCotacao * qtdAtual : valorPosicaoCusto;
 
     if (at.tipo === 'acao') {
@@ -1240,6 +1425,7 @@ async function renderResumo() {
 loadRendaFixa();
 loadAtivos();
 loadWatchlist();
+loadCotacoes();
 </script>
 </body>
 </html>
