@@ -1292,6 +1292,7 @@ async function renderResumo() {
 
   // posição atual (após vendas) e lucro realizado, calculados por ativo
   let totalAcoes = 0, totalFiis = 0, lucroRealizadoAcoes = 0, lucroRealizadoFiis = 0;
+  let totalInvestidoVariavel = 0;
   const acoesBreakdown = [], fiisBreakdown = [];
   (ativos || []).forEach(at => {
     const comprasDoAtivo = (compras || []).filter(c => c.ativo_id === at.id);
@@ -1305,6 +1306,7 @@ async function renderResumo() {
 
     const qtdAtual = qtdComprada - qtdVendida;
     const valorPosicaoCusto = precoMedio * qtdAtual;
+    totalInvestidoVariavel += valorPosicaoCusto;
 
     // se houver cotação recente informada (provento ou aba Cotações), o valor a mercado prevalece sobre o custo
     const ultimaInfo = ultimaCotacaoDe(at.id, proventos, cotacoesTabela);
@@ -1334,6 +1336,9 @@ async function renderResumo() {
   const totalProventos = proventosAcoes + proventosFiis;
 
   const totalGeral = totalFixaAtual + totalAcoes + totalFiis;
+  const totalInvestidoGeral = totalFixaInvestido + totalInvestidoVariavel;
+  const rendimentoGeral = totalGeral - totalInvestidoGeral;
+  const rendimentoGeralPct = totalInvestidoGeral > 0 ? (rendimentoGeral / totalInvestidoGeral * 100) : 0;
 
   // ---- Gráfico de pizza (alocação por categoria) ----
   const pizzaData = [
@@ -1373,14 +1378,24 @@ async function renderResumo() {
     </div>` : '';
 
   box.innerHTML = `
-    <div style="display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin-bottom:26px;">
-      <div class="selo ${rendimentoFixa < 0 ? 'negativo' : ''}">
-        <div class="selo-label">Rendendo</div>
-        <div class="selo-valor">${fmtBRL(rendimentoFixa)}</div>
+    <div style="display:flex;align-items:center;gap:28px;flex-wrap:wrap;margin-bottom:26px;">
+      <div class="selo ${rendimentoGeral < 0 ? 'negativo' : ''}">
+        <div class="selo-label">${rendimentoGeral >= 0 ? 'Lucro' : 'Prejuízo'}</div>
+        <div class="selo-valor">${rendimentoGeral >= 0 ? '+' : ''}${fmtBRL(rendimentoGeral)}</div>
       </div>
-      <div>
-        <div style="font-family:'IBM Plex Mono', monospace;font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;">Patrimônio total estimado</div>
-        <div style="font-family:'Fraunces', serif;font-weight:700;font-size:34px;color:var(--ink);">${fmtBRL(totalGeral)}</div>
+      <div style="display:flex;gap:26px;flex-wrap:wrap;">
+        <div>
+          <div style="font-family:'IBM Plex Mono', monospace;font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;">Valor investido</div>
+          <div style="font-family:'Fraunces', serif;font-weight:700;font-size:26px;color:var(--ink);">${fmtBRL(totalInvestidoGeral)}</div>
+        </div>
+        <div>
+          <div style="font-family:'IBM Plex Mono', monospace;font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;">Valor atual</div>
+          <div style="font-family:'Fraunces', serif;font-weight:700;font-size:26px;color:var(--ink);">${fmtBRL(totalGeral)}</div>
+        </div>
+        <div>
+          <div style="font-family:'IBM Plex Mono', monospace;font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;">Rendimento</div>
+          <div style="font-family:'Fraunces', serif;font-weight:700;font-size:26px;color:${rendimentoGeral >= 0 ? 'var(--green-deep)' : 'var(--rust)'};">${rendimentoGeral >= 0 ? '+' : ''}${fmtBRL(rendimentoGeral)} <span style="font-family:'IBM Plex Mono', monospace;font-size:14px;">(${rendimentoGeral >= 0 ? '+' : ''}${fmtNum(rendimentoGeralPct,1)}%)</span></div>
+        </div>
       </div>
     </div>
     ${pizzaHtml}
