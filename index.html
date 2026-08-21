@@ -1337,8 +1337,10 @@ async function renderResumo() {
 
   const totalGeral = totalFixaAtual + totalAcoes + totalFiis;
   const totalInvestidoGeral = totalFixaInvestido + totalInvestidoVariavel;
-  const rendimentoGeral = totalGeral - totalInvestidoGeral;
+  // rendimento total = valorização das posições + dividendos recebidos + lucro já realizado em vendas
+  const rendimentoGeral = (totalGeral - totalInvestidoGeral) + totalProventos + lucroRealizadoTotal;
   const rendimentoGeralPct = totalInvestidoGeral > 0 ? (rendimentoGeral / totalInvestidoGeral * 100) : 0;
+  const totalAtualComGanhos = totalGeral + totalProventos + lucroRealizadoTotal;
 
   // ---- Gráfico de pizza (alocação por categoria) ----
   const pizzaData = [
@@ -1390,7 +1392,8 @@ async function renderResumo() {
         </div>
         <div>
           <div style="font-family:'IBM Plex Mono', monospace;font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;">Valor atual</div>
-          <div style="font-family:'Fraunces', serif;font-weight:700;font-size:26px;color:var(--ink);">${fmtBRL(totalGeral)}</div>
+          <div style="font-family:'Fraunces', serif;font-weight:700;font-size:26px;color:var(--ink);">${fmtBRL(totalAtualComGanhos)}</div>
+          <div style="font-family:'IBM Plex Mono', monospace;font-size:10px;color:var(--ink-soft);margin-top:2px;">posições + proventos + vendas</div>
         </div>
         <div>
           <div style="font-family:'IBM Plex Mono', monospace;font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;">Rendimento</div>
